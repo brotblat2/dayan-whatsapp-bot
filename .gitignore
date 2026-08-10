@@ -7,9 +7,10 @@ node_modules/
 # Generated searchable corpus stays local.
 sources/
 
-# Keep other raw exports out of Git, but intentionally allow the one private archive
-# used by this private repository's phone/Codespaces bootstrap flow.
+# This private repository intentionally permits raw WhatsApp ZIP input here.
+# Keep the repository private.
 private-input/*
-!private-input/dayan-chat.zip
+!private-input/*.zip
+!private-input/README.md
 *.zip
-!private-input/dayan-chat.zip
+!private-input/*.zip
