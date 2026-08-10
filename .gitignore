@@ -1,0 +1,10 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+.DS_Store
+
+# The Dayan archive is private and should not be committed.
+sources/
+private-input/
+*.zip
