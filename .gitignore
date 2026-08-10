@@ -4,7 +4,12 @@ node_modules/
 .env
 .DS_Store
 
-# The Dayan archive is private and should not be committed.
+# Generated searchable corpus stays local.
 sources/
-private-input/
+
+# Keep other raw exports out of Git, but intentionally allow the one private archive
+# used by this private repository's phone/Codespaces bootstrap flow.
+private-input/*
+!private-input/dayan-chat.zip
 *.zip
+!private-input/dayan-chat.zip
