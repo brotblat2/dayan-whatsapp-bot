@@ -3,13 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 
 const apiKey = process.env.GEMINI_API_KEY;
-const input = process.argv[2];
+const input = process.argv[2] || "private-input/dayan-chat.zip";
 
 if (!apiKey) throw new Error("GEMINI_API_KEY is not set. Add it as a GitHub Codespaces secret, then restart/recreate the codespace.");
-if (!input) throw new Error('Usage: node scripts/bootstrap-archive.mjs "WhatsApp Chat - Q and A with the Dayan.zip"');
 
 const archive = path.resolve(input);
-if (!fs.existsSync(archive)) throw new Error(`Archive not found: ${archive}`);
+if (!fs.existsSync(archive)) {
+  throw new Error(`Archive not found: ${archive}\nUpload the WhatsApp export to private-input/dayan-chat.zip, then run: node scripts/bootstrap-archive.mjs`);
+}
 
 function run(command, args, env = process.env) {
   const result = spawnSync(command, args, { stdio: "inherit", env });
@@ -17,7 +18,8 @@ function run(command, args, env = process.env) {
   if (result.status !== 0) throw new Error(`${command} exited with status ${result.status}`);
 }
 
-console.log("\n1/3 Preparing anonymized monthly archive files...\n");
+console.log(`\nUsing archive: ${archive}\n`);
+console.log("1/3 Preparing anonymized monthly archive files...\n");
 run("python3", ["scripts/prepare-whatsapp-export.py", archive, "sources"]);
 
 console.log("\n2/3 Creating Gemini File Search store...\n");
@@ -43,4 +45,4 @@ run("node", ["scripts/upload-sources.mjs", "sources"], {
 
 console.log("\nDONE. Copy this exact value into the Cloudflare Worker secret named GEMINI_FILE_SEARCH_STORE:\n");
 console.log(store);
-console.log("\nThe raw WhatsApp ZIP and generated sources/ are gitignored and do not need to be committed.\n");
+console.log("\nThe generated sources/ directory remains gitignored. Keep this GitHub repository private because private-input/dayan-chat.zip contains the source chat archive.\n");
