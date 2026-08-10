@@ -1,0 +1,56 @@
+name: Index Dayan archive
+
+on:
+  workflow_dispatch:
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify Gemini secret
+        shell: bash
+        run: |
+          if [ -z "$GEMINI_API_KEY" ]; then
+            echo "GEMINI_API_KEY repository secret is missing." >&2
+            exit 1
+          fi
+
+      - name: Verify archive ZIP
+        shell: bash
+        run: |
+          ZIP_COUNT=$(find private-input -maxdepth 1 -type f -iname '*.zip' | wc -l | tr -d ' ')
+          if [ "$ZIP_COUNT" = "0" ]; then
+            echo "No ZIP found in private-input/. Upload the WhatsApp export ZIP there first." >&2
+            exit 1
+          fi
+          find private-input -maxdepth 1 -type f -iname '*.zip' -print
+
+      - name: Build and index archive
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/bootstrap-archive.mjs | tee /tmp/dayan-index.log
+          STORE=$(grep -oE 'fileSearchStores/[A-Za-z0-9_-]+' /tmp/dayan-index.log | tail -n 1)
+          if [ -z "$STORE" ]; then
+            echo "Could not find the File Search store name in the bootstrap output." >&2
+            exit 1
+          fi
+          {
+            echo "## Gemini File Search store"
+            echo
+            echo "Copy this exact value into the Cloudflare Worker secret named **GEMINI_FILE_SEARCH_STORE**:"
+            echo
+            echo '\`'"$STORE"'\`'
+          } >> "$GITHUB_STEP_SUMMARY"
