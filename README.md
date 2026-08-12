@@ -130,3 +130,5 @@ That recreates `sources/` from the newer export with participant sender labels a
 - Long answers are split into WhatsApp-safe chunks.
 - Conversation context expires after 30 days.
 - The original NotebookLM URL is no longer required at runtime; this project indexes the actual WhatsApp archive directly.
+
+<!-- Trigger Cloudflare deployment -->
