@@ -17,6 +17,8 @@ console.log(`Found ${files.length} file(s) to upload.`);
 
 const fileByName = new Map(files.map((absolute) => [path.basename(absolute), absolute]));
 const expectedNames = new Set(fileByName.keys());
+const retryCounts = new Map();
+const maxDocumentRetries = 3;
 let existingDocs = await listDocuments();
 console.log(`Store currently contains ${existingDocs.size} document(s).`);
 
@@ -34,18 +36,20 @@ for (const [displayName, absolute] of fileByName) {
   if (existing?.state === "STATE_FAILED") {
     console.log(`Removing failed prior document for ${displayName} before retrying...`);
     await deleteDocument(existing.name);
+    retryCounts.set(displayName, 1);
+    await sleep(3000);
   }
 
   await uploadFile(absolute, displayName);
   queued++;
   // Gentle pacing avoids bursting upload requests even on lower API tiers.
-  await sleep(1000);
+  await sleep(existing?.state === "STATE_FAILED" ? 5000 : 1500);
 }
 
 console.log(`Queued ${queued} new upload(s). Now waiting for the whole archive to finish indexing in parallel...`);
 
 const started = Date.now();
-const maxWaitMs = 2 * 60 * 60 * 1000; // two hours overall, not per file
+const maxWaitMs = 2 * 60 * 60 * 1000; // two hours overall
 let lastSummary = "";
 
 while (true) {
@@ -66,18 +70,42 @@ while (true) {
   const summary = `${active.length}/${expectedNames.size} active, ${pending.length} pending, ${failed.length} failed, ${missing.length} not visible yet`;
   if (summary !== lastSummary) {
     console.log(summary);
-    if (pending.length && pending.length <= 8) console.log(`  pending: ${pending.join(", ")}`);
+    if (pending.length && pending.length <= 10) console.log(`  pending: ${pending.join(", ")}`);
     if (failed.length) console.log(`  failed: ${failed.join(", ")}`);
     lastSummary = summary;
   }
 
-  if (failed.length) {
-    throw new Error(`Gemini reported failed document(s): ${failed.join(", ")}. Re-run the workflow; failed documents will be deleted and retried automatically.`);
-  }
   if (active.length === expectedNames.size) {
     console.log("All archive documents are ACTIVE and searchable.");
     break;
   }
+
+  if (failed.length) {
+    console.log(`Retrying ${failed.length} failed document(s) one at a time with slower pacing...`);
+    for (const displayName of failed) {
+      const attempts = retryCounts.get(displayName) || 0;
+      if (attempts >= maxDocumentRetries) {
+        throw new Error(`${displayName} has failed indexing ${attempts} time(s) in this run. Stop and inspect that document before retrying again.`);
+      }
+
+      const doc = existingDocs.get(displayName);
+      const absolute = fileByName.get(displayName);
+      if (!doc || !absolute) continue;
+
+      const nextAttempt = attempts + 1;
+      console.log(`Retry ${nextAttempt}/${maxDocumentRetries} for ${displayName}...`);
+      await deleteDocument(doc.name);
+      await sleep(5000);
+      await uploadFile(absolute, displayName);
+      retryCounts.set(displayName, nextAttempt);
+      // Deliberately slow retries to avoid another burst of indexing failures.
+      await sleep(7000);
+    }
+    lastSummary = "";
+    await sleep(15000);
+    continue;
+  }
+
   if (Date.now() - started > maxWaitMs) {
     throw new Error(`Archive still has ${pending.length} pending and ${missing.length} missing document(s) after two hours. Re-run safely; active files will be skipped and pending files will continue to be monitored.`);
   }
@@ -162,11 +190,13 @@ async function listDocuments() {
 }
 
 async function deleteDocument(name) {
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://generativelanguage.googleapis.com/v1beta/${name}?force=true&key=${encodeURIComponent(apiKey)}`,
-    { method: "DELETE" }
+    { method: "DELETE" },
+    `delete failed document ${name}`
   );
-  if (!res.ok) throw new Error(`Delete failed document failed ${res.status}: ${await res.text()}`);
+  // Consume the body so keep-alive connections can be cleanly reused.
+  await res.text();
 }
 
 function sleep(ms) {
