@@ -2,5 +2,10 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "dayan-whatsapp-archive-bot",
   "main": "src/index.ts",
-  "compatibility_date": "2026-08-01"
+  "compatibility_date": "2026-08-01",
+  "kv_namespaces": [
+    {
+      "binding": "CHAT_HISTORY"
+    }
+  ]
 }
