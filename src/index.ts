@@ -7,6 +7,21 @@ interface ExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
 }
 
+interface QueueBinding<T = unknown> {
+  send(body: T): Promise<void>;
+}
+
+interface QueueMessage<T = unknown> {
+  body: T;
+  ack(): void;
+  retry(): void;
+}
+
+interface MessageBatch<T = unknown> {
+  queue: string;
+  messages: QueueMessage<T>[];
+}
+
 interface Env {
   META_VERIFY_TOKEN: string;
   META_APP_SECRET: string;
@@ -16,6 +31,7 @@ interface Env {
   GEMINI_FILE_SEARCH_STORE: string;
   ALLOWED_PHONE_NUMBERS?: string;
   CHAT_HISTORY: KVNamespace;
+  WEBHOOK_QUEUE?: QueueBinding<any>;
 }
 
 type WhatsAppMessage = {
@@ -66,11 +82,31 @@ export default {
       return new Response("Bad JSON", { status: 400 });
     }
 
-    // Acknowledge webhook events quickly. Work is completed in waitUntil.
-    const task = processWebhook(body, env).catch((error) => console.error("webhook error", error));
-    ctx.waitUntil(task);
+    // Gemini File Search can take longer than the 30-second waitUntil grace period.
+    // Queue the verified webhook so Meta gets an immediate acknowledgement while
+    // the Queue consumer gets a much longer execution window for Gemini + reply.
+    if (env.WEBHOOK_QUEUE) {
+      await env.WEBHOOK_QUEUE.send(body);
+    } else {
+      // Safe rollout fallback until the Queue binding has been provisioned.
+      const task = processWebhook(body, env).catch((error) => console.error("webhook error", error));
+      ctx.waitUntil(task);
+    }
 
     return new Response("EVENT_RECEIVED", { status: 200 });
+  },
+
+  async queue(batch: MessageBatch<any>, env: Env): Promise<void> {
+    for (const message of batch.messages) {
+      try {
+        console.log(`Processing queued WhatsApp webhook from ${batch.queue}`);
+        await processWebhook(message.body, env);
+        message.ack();
+      } catch (error) {
+        console.error("queue processing error", error);
+        message.retry();
+      }
+    }
   }
 };
 
