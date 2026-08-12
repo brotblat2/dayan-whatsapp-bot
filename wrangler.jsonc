@@ -7,5 +7,21 @@
     {
       "binding": "CHAT_HISTORY"
     }
-  ]
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "WEBHOOK_QUEUE",
+        "queue": "dayan-whatsapp-jobs"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "dayan-whatsapp-jobs",
+        "max_batch_size": 1,
+        "max_batch_timeout": 1,
+        "max_retries": 3
+      }
+    ]
+  }
 }
