@@ -7,9 +7,7 @@ if (!apiKey) throw new Error("Set GEMINI_API_KEY first");
 if (!store) throw new Error("Set GEMINI_FILE_SEARCH_STORE first");
 
 const inputs = process.argv.slice(2);
-if (!inputs.length) {
-  throw new Error("Usage: npm run upload -- path/to/file-or-directory [...]");
-}
+if (!inputs.length) throw new Error("Usage: npm run upload -- path/to/file-or-directory [...]");
 
 const files = [];
 for (const input of inputs) collectFiles(path.resolve(input), files);
@@ -17,31 +15,82 @@ files.sort();
 if (!files.length) throw new Error("No files found to upload");
 console.log(`Found ${files.length} file(s) to upload.`);
 
-const existingDocs = await listDocuments();
+const fileByName = new Map(files.map((absolute) => [path.basename(absolute), absolute]));
+const expectedNames = new Set(fileByName.keys());
+let existingDocs = await listDocuments();
 console.log(`Store currently contains ${existingDocs.size} document(s).`);
 
-for (const absolute of files) {
-  const stat = fs.statSync(absolute);
-  const displayName = path.basename(absolute);
-  const mime = guessMime(displayName);
-
+let queued = 0;
+for (const [displayName, absolute] of fileByName) {
   const existing = existingDocs.get(displayName);
-  if (existing) {
-    const state = await waitForExistingDocument(existing, displayName);
-    if (state === "STATE_ACTIVE") {
-      console.log(`Skipping ${displayName} (already indexed).`);
-      continue;
-    }
-    if (state === "STATE_FAILED") {
-      console.log(`Removing failed prior document for ${displayName} before retrying...`);
-      await deleteDocument(existing.name);
-      existingDocs.delete(displayName);
-    }
+  if (existing?.state === "STATE_ACTIVE") {
+    console.log(`Skipping ${displayName} (already indexed).`);
+    continue;
+  }
+  if (existing && existing.state !== "STATE_FAILED") {
+    console.log(`Leaving ${displayName} in ${existing.state || "STATE_PENDING"}; it will be monitored with the rest.`);
+    continue;
+  }
+  if (existing?.state === "STATE_FAILED") {
+    console.log(`Removing failed prior document for ${displayName} before retrying...`);
+    await deleteDocument(existing.name);
   }
 
+  await uploadFile(absolute, displayName);
+  queued++;
+  // Gentle pacing avoids bursting upload requests even on lower API tiers.
+  await sleep(1000);
+}
+
+console.log(`Queued ${queued} new upload(s). Now waiting for the whole archive to finish indexing in parallel...`);
+
+const started = Date.now();
+const maxWaitMs = 2 * 60 * 60 * 1000; // two hours overall, not per file
+let lastSummary = "";
+
+while (true) {
+  existingDocs = await listDocuments();
+  const active = [];
+  const pending = [];
+  const failed = [];
+  const missing = [];
+
+  for (const name of expectedNames) {
+    const doc = existingDocs.get(name);
+    if (!doc) missing.push(name);
+    else if (doc.state === "STATE_ACTIVE") active.push(name);
+    else if (doc.state === "STATE_FAILED") failed.push(name);
+    else pending.push(name);
+  }
+
+  const summary = `${active.length}/${expectedNames.size} active, ${pending.length} pending, ${failed.length} failed, ${missing.length} not visible yet`;
+  if (summary !== lastSummary) {
+    console.log(summary);
+    if (pending.length && pending.length <= 8) console.log(`  pending: ${pending.join(", ")}`);
+    if (failed.length) console.log(`  failed: ${failed.join(", ")}`);
+    lastSummary = summary;
+  }
+
+  if (failed.length) {
+    throw new Error(`Gemini reported failed document(s): ${failed.join(", ")}. Re-run the workflow; failed documents will be deleted and retried automatically.`);
+  }
+  if (active.length === expectedNames.size) {
+    console.log("All archive documents are ACTIVE and searchable.");
+    break;
+  }
+  if (Date.now() - started > maxWaitMs) {
+    throw new Error(`Archive still has ${pending.length} pending and ${missing.length} missing document(s) after two hours. Re-run safely; active files will be skipped and pending files will continue to be monitored.`);
+  }
+
+  await sleep(15000);
+}
+
+async function uploadFile(absolute, displayName) {
+  const stat = fs.statSync(absolute);
+  const mime = guessMime(displayName);
   console.log(`Uploading ${displayName}...`);
 
-  const start = await fetch(
+  const start = await fetchWithRetry(
     `https://generativelanguage.googleapis.com/upload/v1beta/${store}:uploadToFileSearchStore?key=${encodeURIComponent(apiKey)}`,
     {
       method: "POST",
@@ -53,48 +102,43 @@ for (const absolute of files) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({ displayName })
-    }
+    },
+    `start upload for ${displayName}`
   );
 
-  if (!start.ok) throw new Error(`Start upload failed ${start.status}: ${await start.text()}`);
   const uploadUrl = start.headers.get("x-goog-upload-url");
   if (!uploadUrl) throw new Error("Google did not return x-goog-upload-url");
 
-  const upload = await fetch(uploadUrl, {
-    method: "POST",
-    headers: {
-      "Content-Length": String(stat.size),
-      "X-Goog-Upload-Offset": "0",
-      "X-Goog-Upload-Command": "upload, finalize"
+  await fetchWithRetry(
+    uploadUrl,
+    {
+      method: "POST",
+      headers: {
+        "Content-Length": String(stat.size),
+        "X-Goog-Upload-Offset": "0",
+        "X-Goog-Upload-Command": "upload, finalize"
+      },
+      body: fs.readFileSync(absolute)
     },
-    body: fs.readFileSync(absolute)
-  });
+    `finalize upload for ${displayName}`
+  );
+  console.log(`Queued ${displayName} for indexing.`);
+}
 
-  if (!upload.ok) throw new Error(`Upload failed ${upload.status}: ${await upload.text()}`);
-  let result = await upload.json();
-
-  // Gemini File Search indexing is a long-running operation. Some files can take
-  // several minutes, especially on the free tier, so allow up to 30 minutes.
-  if (result?.name && result.done !== true && String(result.name).includes("/operations/")) {
-    process.stdout.write("  indexing");
-    const maxAttempts = 360; // 360 * 5s = 30 minutes
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await sleep(5000);
-      const status = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/${result.name}?key=${encodeURIComponent(apiKey)}`
-      );
-      if (!status.ok) throw new Error(`Operation poll failed ${status.status}: ${await status.text()}`);
-      result = await status.json();
-      if (result.done) break;
-      if (attempt % 6 === 5) process.stdout.write("."); // one dot every ~30 seconds
+async function fetchWithRetry(url, options, label) {
+  let delayMs = 2000;
+  for (let attempt = 1; attempt <= 6; attempt++) {
+    const res = await fetch(url, options);
+    if (res.ok) return res;
+    const body = await res.text();
+    if (![429, 500, 502, 503, 504].includes(res.status) || attempt === 6) {
+      throw new Error(`${label} failed ${res.status}: ${body}`);
     }
-    process.stdout.write("\n");
-    if (!result.done) throw new Error(`Indexing still not complete after 30 minutes for ${displayName}`);
-    if (result.error) throw new Error(`Indexing failed for ${displayName}: ${JSON.stringify(result.error)}`);
+    console.log(`${label} got ${res.status}; retrying in ${delayMs / 1000}s...`);
+    await sleep(delayMs);
+    delayMs *= 2;
   }
-
-  console.log(`Indexed ${displayName}`);
-  await refreshDocument(displayName, existingDocs);
+  throw new Error(`${label} failed after retries`);
 }
 
 async function listDocuments() {
@@ -103,10 +147,11 @@ async function listDocuments() {
   do {
     const params = new URLSearchParams({ pageSize: "20", key: apiKey });
     if (pageToken) params.set("pageToken", pageToken);
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${store}/documents?${params}`
+    const res = await fetchWithRetry(
+      `https://generativelanguage.googleapis.com/v1beta/${store}/documents?${params}`,
+      {},
+      "list documents"
     );
-    if (!res.ok) throw new Error(`List documents failed ${res.status}: ${await res.text()}`);
     const data = await res.json();
     for (const doc of data.documents ?? []) {
       if (doc.displayName) byDisplayName.set(doc.displayName, doc);
@@ -114,29 +159,6 @@ async function listDocuments() {
     pageToken = data.nextPageToken || "";
   } while (pageToken);
   return byDisplayName;
-}
-
-async function refreshDocument(displayName, map) {
-  const docs = await listDocuments();
-  const doc = docs.get(displayName);
-  if (doc) map.set(displayName, doc);
-}
-
-async function waitForExistingDocument(doc, displayName) {
-  let current = doc;
-  if (current.state === "STATE_ACTIVE" || current.state === "STATE_FAILED") return current.state;
-
-  console.log(`${displayName} already exists in state ${current.state || "UNKNOWN"}; waiting for it instead of uploading a duplicate...`);
-  for (let attempt = 0; attempt < 180; attempt++) { // up to 30 minutes
-    await sleep(10000);
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/${current.name}?key=${encodeURIComponent(apiKey)}`
-    );
-    if (!res.ok) throw new Error(`Document poll failed ${res.status}: ${await res.text()}`);
-    current = await res.json();
-    if (current.state === "STATE_ACTIVE" || current.state === "STATE_FAILED") return current.state;
-  }
-  throw new Error(`Existing document is still pending after 30 minutes: ${displayName}`);
 }
 
 async function deleteDocument(name) {
@@ -175,7 +197,5 @@ function collectFiles(input, out) {
     return;
   }
   if (!stat.isDirectory()) return;
-  for (const entry of fs.readdirSync(input)) {
-    collectFiles(path.join(input, entry), out);
-  }
+  for (const entry of fs.readdirSync(input)) collectFiles(path.join(input, entry), out);
 }
