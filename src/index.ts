@@ -205,7 +205,15 @@ async function askGemini(question: string, history: ChatTurn[], env: Env): Promi
   );
 
   if (!response.ok) {
-    throw new Error(`Gemini ${response.status}: ${await response.text()}`);
+    const errorBody = await response.text();
+    console.error("Gemini API error", {
+      status: response.status,
+      body: errorBody,
+      model: GEMINI_MODEL,
+      fileSearchStore: env.GEMINI_FILE_SEARCH_STORE || "(missing)",
+      hasApiKey: Boolean(env.GEMINI_API_KEY)
+    });
+    throw new Error(`Gemini ${response.status}: ${errorBody}`);
   }
 
   const data: any = await response.json();
