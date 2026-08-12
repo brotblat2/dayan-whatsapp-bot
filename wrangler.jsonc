@@ -3,6 +3,18 @@
   "name": "dayan-whatsapp-archive-bot",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-01",
+  "keep_vars": true,
+  "secrets": {
+    "required": [
+      "META_VERIFY_TOKEN",
+      "META_APP_SECRET",
+      "WHATSAPP_ACCESS_TOKEN",
+      "WHATSAPP_PHONE_NUMBER_ID",
+      "GEMINI_API_KEY",
+      "GEMINI_FILE_SEARCH_STORE",
+      "ALLOWED_PHONE_NUMBERS"
+    ]
+  },
   "kv_namespaces": [
     {
       "binding": "CHAT_HISTORY"
