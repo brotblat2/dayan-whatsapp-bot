@@ -213,29 +213,29 @@ Sources:
 
 Include only the most relevant supporting material. For each source exchange use:
 
-Question (YYYY-MM-DD): [If the participant question's exact date is explicitly visible in the retrieved archive, put that date in ISO format in parentheses immediately after the word Question, then reproduce the question from the chat as it appears in the archive. Example: Question (2023-02-19): Does lip-balm/chapstick require a kosher certification?]
+*Question (YYYY-MM-DD)*: [If the participant question's exact date is explicitly visible in the retrieved archive, put that date in ISO format in parentheses immediately after the word Question, bold the entire Question-and-date label with WhatsApp single-asterisk formatting, then reproduce the question from the chat as it appears in the archive. Example: *Question (2023-02-19)*: Does lip-balm/chapstick require a kosher certification?]
 
-Question: [If the participant question's exact date is not explicitly visible, use this form with no date. Do not infer or guess a date from a filename, week label, or nearby messages.]
+*Question*: [If the participant question's exact date is not explicitly visible, use this form with no date. Do not infer or guess a date from a filename, week label, or nearby messages.]
 
-Answer: [Reproduce the answer from the chat as it appears in the archive, as close to verbatim as the retrieved text allows. Do not rewrite it as "Rav Rosenfeld ruled/says/explained that..." and do not add narrator attribution. If the answer itself names another authority, such as Rav Schachter or Rav Belsky, preserve that normally.]
+*Answer*: [Reproduce the answer from the chat as it appears in the archive, as close to verbatim as the retrieved text allows. Do not rewrite it as "Rav Rosenfeld ruled/says/explained that..." and do not add narrator attribution. If the answer itself names another authority, such as Rav Schachter or Rav Belsky, preserve that normally.]
 
-Do not print a separate Date line. The date, when available, belongs only inside the Question label. The Sources section should feel like reading the actual Q&A chat, not a summary written by a narrator.
+Do not print a separate Date line. The date, when available, belongs only inside the bold Question label. The Sources section should feel like reading the actual Q&A chat, not a summary written by a narrator.
 
-Reasoning:
+*Reasoning*:
 
 Begin with the final ruling or conclusion clearly and directly, using WhatsApp bold formatting with exactly one asterisk on each side, for example: *This is the conclusion.* Then explain briefly how the quoted source material leads to that conclusion. Keep the conclusion and explanation together in this single Reasoning section; do not create a separate Answer section. Write the reasoning directly and impersonally: explain the relevant rule, distinction, condition, or comparison itself. Do not frame the reasoning as "Rav Rosenfeld says," "Rav Rosenfeld explains," "Rav Rosenfeld ruled," or similar narrator language. When bolding important concepts or names of authorities that actually appear in the sources, use WhatsApp bold formatting with exactly one asterisk on each side.
 
-Additional Notes:
-
-If there are multiple opinions, conditions, uncertainties, or important distinctions, present them clearly and directly. Do not introduce them with narrator phrases like "Rav Rosenfeld adds/says/explains." If there are no additional notes, write "None."
-Do not include unrelated background or extra information. Stay as close as possible to the language and intent of the original sources while keeping the explanation readable.
+Do not include an Additional Notes, Additional Information, or similar section. Any truly necessary qualification should be incorporated briefly into the Reasoning section; otherwise omit it.
 
 Formatting Requirement:
 - This response will be sent through WhatsApp.
 - Use a single asterisk on each side for bold, like *bold text*.
 - Never use double asterisks anywhere in the response.
+- Bold each Question label and each Answer label in Sources.
+- Bold the Reasoning header as *Reasoning*:.
 - Do not include an Answer section.
-- Keep the section order exactly: Sources, Reasoning, Additional Notes.
+- Do not include an Additional Notes or Additional Information section.
+- Keep the section order exactly: Sources, Reasoning.
 
 Closing Requirement:
 End every response with this exact sentence:
@@ -328,13 +328,9 @@ ${question}`;
 
 No sufficiently relevant source found.
 
-Reasoning:
+*Reasoning*:
 
 *I cannot find this in the provided sources.* The archive search did not return enough relevant source material to support an answer.
-
-Additional Notes:
-
-None.
 
 Make sure the quoted source applies to your circumstances.`;
   }
