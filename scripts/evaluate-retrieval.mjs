@@ -8,7 +8,7 @@ const regressionQuestions = [
   "Does chapstick need to be kosher?"
 ];
 
-console.log(`\nRunning ${regressionQuestions.length} known-question retrieval checks against ${store}...\n`);
+console.log(`\nRunning ${regressionQuestions.length} known-question retrieval checks against retrieval-v3 in ${store}...\n`);
 
 let foundCount = 0;
 for (let i = 0; i < regressionQuestions.length; i++) {
@@ -22,7 +22,7 @@ for (let i = 0; i < regressionQuestions.length; i++) {
 
 console.log(`Retrieval regression summary: ${foundCount}/${regressionQuestions.length} known questions reported MATCH_FOUND.`);
 if (foundCount < regressionQuestions.length) {
-  console.warn("One or more known questions were not directly surfaced. Indexing itself succeeded, but retrieval still needs tuning before claiming the regression is fixed.");
+  console.warn("One or more known questions were not directly surfaced. The retrieval-v3 index is searchable, but retrieval still needs tuning before claiming the regression is fixed.");
 }
 
 async function findKnownQuestion(question, testNumber) {
@@ -45,6 +45,7 @@ async function findKnownQuestion(question, testNumber) {
         tools: [{
           type: "file_search",
           file_search_store_names: [store],
+          metadata_filter: 'representation="retrieval-v3"',
           top_k: 30
         }]
       })
