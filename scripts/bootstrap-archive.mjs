@@ -31,22 +31,22 @@ function run(command, args, env = process.env) {
 }
 
 console.log(`\nUsing archive: ${archive}\n`);
-console.log("1/3 Preparing anonymized monthly archive files...\n");
+console.log("1/3 Preparing retrieval-optimized weekly archive windows...\n");
 run("python3", ["scripts/prepare-whatsapp-export.py", archive, "sources"]);
 
 console.log("\n2/3 Finding or creating Gemini File Search store...\n");
 const store = process.env.GEMINI_FILE_SEARCH_STORE || await findLatestMatchingStore() || await createStore();
 console.log(`Using ${store}`);
 
-console.log("\n3/3 Uploading and indexing archive...\n");
+console.log("\n3/3 Uploading and indexing retrieval-v2 archive...\n");
 run("node", ["scripts/upload-sources.mjs", "sources"], {
   ...process.env,
   GEMINI_FILE_SEARCH_STORE: store
 });
 
-console.log("\nDONE. Copy this exact value into the Cloudflare Worker secret named GEMINI_FILE_SEARCH_STORE:\n");
+console.log("\nDONE. Retrieval-v2 documents are indexed in this Gemini File Search store:\n");
 console.log(store);
-console.log("\nThe generated sources/ directory remains gitignored. Keep this GitHub repository private because private-input/ contains the source chat archive.\n");
+console.log("\nThe existing store is reused so the Cloudflare Worker store setting does not need to change. The generated sources/ directory remains gitignored. Keep this GitHub repository private because private-input/ contains the source chat archive.\n");
 
 async function createStore() {
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/fileSearchStores?key=${encodeURIComponent(apiKey)}`, {
@@ -81,6 +81,6 @@ async function findLatestMatchingStore() {
 
   if (!matches.length) return null;
   const latest = matches[matches.length - 1];
-  console.log(`Found existing store ${latest.name} with ${latest.activeDocumentsCount || 0} active, ${latest.pendingDocumentsCount || 0} pending, ${latest.failedDocumentsCount || 0} failed document(s). Resuming it.`);
+  console.log(`Found existing store ${latest.name} with ${latest.activeDocumentsCount || 0} active, ${latest.pendingDocumentsCount || 0} pending, ${latest.failedDocumentsCount || 0} failed document(s). Reusing it so the Worker binding remains unchanged.`);
   return latest.name;
 }
