@@ -226,6 +226,18 @@ async function askGemini(question: string, history: ChatTurn[], env: Env): Promi
     stepTypes: Array.isArray(data?.steps) ? data.steps.map((step: any) => step?.type ?? "(missing)") : []
   });
 
+  const modelOutputs = Array.isArray(data?.steps)
+    ? data.steps.filter((step: any) => step?.type === "model_output")
+    : [];
+  console.log("Gemini model output shape", modelOutputs.map((step: any) => ({
+    contentTypes: Array.isArray(step?.content) ? step.content.map((block: any) => block?.type ?? "(missing)") : [],
+    hasText: Array.isArray(step?.content) ? step.content.map((block: any) => typeof block?.text === "string") : [],
+    textLengths: Array.isArray(step?.content) ? step.content.map((block: any) => typeof block?.text === "string" ? block.text.length : 0) : [],
+    annotationTypes: Array.isArray(step?.content)
+      ? step.content.map((block: any) => Array.isArray(block?.annotations) ? block.annotations.map((annotation: any) => annotation?.type ?? "(missing)") : [])
+      : []
+  })));
+
   const textParts: string[] = [];
   const citations = new Map<string, { file: string; page?: number }>();
 
