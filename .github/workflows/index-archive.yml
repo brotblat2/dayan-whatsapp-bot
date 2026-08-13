@@ -2,6 +2,16 @@ name: Index Dayan archive
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/prepare-whatsapp-export.py'
+      - 'scripts/upload-sources.mjs'
+      - 'scripts/bootstrap-archive.mjs'
+      - 'scripts/evaluate-retrieval.mjs'
+      - 'private-input/**'
+      - '.github/workflows/index-archive.yml'
 
 jobs:
   index:
@@ -38,7 +48,7 @@ jobs:
           fi
           find private-input -maxdepth 1 -type f -iname '*.zip' -print
 
-      - name: Build and index archive
+      - name: Build, index, and test retrieval
         shell: bash
         run: |
           set -o pipefail
@@ -48,10 +58,17 @@ jobs:
             echo "Could not find the File Search store name in the bootstrap output." >&2
             exit 1
           fi
+
+          GEMINI_FILE_SEARCH_STORE="$STORE" node scripts/evaluate-retrieval.mjs | tee /tmp/dayan-eval.log
+
           {
-            echo "## Gemini File Search store"
+            echo "## Gemini File Search retrieval-v2"
             echo
-            echo "Copy this exact value into the Cloudflare Worker secret named **GEMINI_FILE_SEARCH_STORE**:"
+            echo "Indexed into the existing store:"
             echo
             echo '\`'"$STORE"'\`'
+            echo
+            echo "### Known-question regression checks"
+            echo
+            grep 'Retrieval regression summary:' /tmp/dayan-eval.log || true
           } >> "$GITHUB_STEP_SUMMARY"
