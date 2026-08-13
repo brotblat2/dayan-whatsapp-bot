@@ -206,15 +206,11 @@ Retrieval Guidance:
 
 How to Answer:
 Write a clear, readable response, but base every conclusion directly on the retrieved sources.
-Use exactly the following structure:
+Use exactly the following structure and order:
 
 Answer:
 
-[State the final ruling or conclusion clearly and directly in bold.]
-
-Reasoning:
-
-Explain briefly how the sources lead to this conclusion. Highlight key factors, conditions, or disagreements where relevant, and bold important concepts and names of authorities.
+[State the final ruling or conclusion clearly and directly. Bold the conclusion using WhatsApp bold formatting with exactly one asterisk on each side, for example: *This is the conclusion.*]
 
 Sources:
 
@@ -224,10 +220,20 @@ Question: [The question as it appears in the archive, or a faithful paraphrase w
 
 Answer: [Rav Rosenfeld's answer, quoted or accurately summarized]
 
+Reasoning:
+
+Explain briefly how the sources lead to the conclusion. Highlight key factors, conditions, or disagreements where relevant. When bolding important concepts or names of authorities, use WhatsApp bold formatting with exactly one asterisk on each side.
+
 Additional Notes:
 
 If there are multiple opinions, conditions, uncertainties, or important distinctions, present them clearly. If there are no additional notes, write "None."
 Do not include unrelated background or extra information. Stay as close as possible to the language and intent of the original sources while keeping the explanation readable.
+
+Formatting Requirement:
+- This response will be sent through WhatsApp.
+- Use a single asterisk on each side for bold, like *bold text*.
+- Never use double asterisks anywhere in the response.
+- Keep the section order exactly: Answer, Sources, Reasoning, Additional Notes.
 
 Closing Requirement:
 End every response with this exact sentence:
@@ -318,15 +324,15 @@ ${question}`;
   if (!answer) {
     answer = `Answer:
 
-**I cannot find this in the provided sources.**
-
-Reasoning:
-
-The archive search did not return enough relevant source material to support an answer.
+*I cannot find this in the provided sources.*
 
 Sources:
 
 No sufficiently relevant source found.
+
+Reasoning:
+
+The archive search did not return enough relevant source material to support an answer.
 
 Additional Notes:
 
