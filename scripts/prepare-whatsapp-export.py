@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Convert a WhatsApp exported chat ZIP/TXT into retrieval-optimized weekly Markdown windows.
+"""Convert a WhatsApp export into retrieval-optimized weekly Markdown windows.
 
-Each output file contains one ISO week of substantive messages plus a small amount of
-chronological context from the neighboring weeks. Participant names are anonymized;
-Rav Rosenfeld is preserved as the archive authority.
-
-Usage:
-  python3 scripts/prepare-whatsapp-export.py "/path/to/WhatsApp Chat.zip" [output-dir]
+Important parsing choices for this archive:
+- Top-level exported messages contain timestamps with seconds. Quoted/pasted older
+  WhatsApp messages often look like message headers but omit seconds, so they stay
+  inside the parent message instead of becoming fake historical top-level messages.
+- WhatsApp can append "image omitted" (and similar media markers) to an otherwise
+  substantive text question. We remove the trailing media marker instead of dropping
+  the whole question.
+- Participant names are anonymized; only top-level sender "Rav Rosenfeld" is authority.
 """
 from pathlib import Path
 import zipfile, re, collections, datetime, sys, shutil
@@ -32,7 +34,10 @@ messages = []
 cur = None
 for line in text.splitlines():
     m = pat.match(line)
-    if m:
+    # This export's real message headers include seconds. Pasted/quoted historical
+    # messages frequently omit them; treating those as top-level corrupts chronology.
+    is_top_level = bool(m and re.search(r'\b\d{1,2}:\d{2}:\d{2}\b', m.group(1)))
+    if is_top_level:
         if cur:
             messages.append(cur)
         cur = {'dt': m.group(1), 'sender': m.group(2).strip(), 'text': m.group(3)}
@@ -43,44 +48,55 @@ if cur:
 
 def parse_dt(s):
     s = s.replace('\u202f', ' ').replace('\xa0', ' ')
-    for fmt in (
-        '%m/%d/%y, %I:%M:%S %p',
-        '%m/%d/%Y, %I:%M:%S %p',
-        '%m/%d/%y, %I:%M %p',
-        '%m/%d/%Y, %I:%M %p',
-    ):
+    for fmt in ('%m/%d/%y, %I:%M:%S %p', '%m/%d/%Y, %I:%M:%S %p'):
         try:
             return datetime.datetime.strptime(s, fmt)
         except ValueError:
             pass
     return None
 
-def substantive(t):
-    # Directional marks are common in normal WhatsApp exports, so strip them instead
-    # of treating their presence as evidence that a message is a system notice.
+media_tail = re.compile(
+    r'(?:\s|^)(?:audio|image|video|sticker|gif|document|contact card|location) omitted\s*$',
+    re.IGNORECASE,
+)
+
+def clean_body(t):
+    # Directional marks are common on real WhatsApp messages and are not a reason
+    # to drop a message.
     x = t.replace('\u200e', '').replace('\u200f', '').strip()
+    # Preserve text that accompanied media. Example: a complete Halachic question
+    # followed by "image omitted" should remain searchable.
+    x = media_tail.sub('', x).strip()
     if not x:
-        return False
-    low = x.lower()
-    return not any(marker in low for marker in (
-        'this message was deleted', 'audio omitted', 'image omitted', 'video omitted',
-        'sticker omitted', 'gif omitted', 'document omitted', 'contact card omitted',
-        'location omitted', 'security code with', 'changed their phone number',
-        'changed the group description', 'changed this group', 'created group',
-        'added ~', 'removed ~', 'pinned a message', 'joined using this group'
-    ))
+        return None
+
+    low = x.lower().strip()
+    if low in (
+        'this message was deleted',
+        'messages and calls are end-to-end encrypted. only people in this chat can read, listen to, or share them.',
+    ):
+        return None
+    if re.search(r'\bcreated this group$', low):
+        return None
+    if re.search(r'\badded you$', low):
+        return None
+    if re.search(r'\bjoined using this group', low):
+        return None
+    if re.search(r'\bchanged (their phone number|the group description|this group)', low):
+        return None
+    if re.search(r'\bpinned a message$', low):
+        return None
+    return x
 
 kept_messages = []
 rav_count = 0
 for msg in messages:
-    if not substantive(msg['text']):
-        continue
     dt = parse_dt(msg['dt'])
-    if not dt:
+    body = clean_body(msg['text'])
+    if not dt or not body:
         continue
     speaker = 'Rav Rosenfeld' if msg['sender'] == 'Rav Rosenfeld' else 'Participant'
     rav_count += speaker == 'Rav Rosenfeld'
-    body = msg['text'].replace('\u200e', '').replace('\u200f', '').strip()
     kept_messages.append({'dt': dt, 'speaker': speaker, 'body': body})
 
 weeks = collections.defaultdict(list)
@@ -98,10 +114,9 @@ for (iso_year, iso_week), indices in sorted(weeks.items()):
 
     monday = datetime.date.fromisocalendar(iso_year, iso_week, 1)
     sunday = monday + datetime.timedelta(days=6)
-    path = out_dir / f'retrieval-v2-{iso_year}-W{iso_week:02d}.md'
+    path = out_dir / f'retrieval-v3-{iso_year}-W{iso_week:02d}.md'
     lines = [
-        f'# Q and A with the Dayan — retrieval window {iso_year}-W{iso_week:02d}',
-        '',
+        f'# Q and A with the Dayan — retrieval window {iso_year}-W{iso_week:02d}', '',
         f'> Central week: {monday.isoformat()} through {sunday.isoformat()}.',
         '> Retrieval-optimized chronological window. A few messages from before and after the week are intentionally repeated so questions and Rav Rosenfeld answers are less likely to be separated by a file boundary.',
         '> Participant sender names are anonymized. Only messages labeled Rav Rosenfeld are authoritative archive answers.',
@@ -121,12 +136,12 @@ for (iso_year, iso_week), indices in sorted(weeks.items()):
         lines += [
             f'### {stamp} — {msg["speaker"]}{context_mark}',
             msg['body'],
-            ''
+            '',
         ]
 
     path.write_text('\n'.join(lines), encoding='utf-8')
 
 print(
-    f'Created {len(weeks)} retrieval-v2 weekly files from {len(kept_messages)} substantive messages, '
+    f'Created {len(weeks)} retrieval-v3 weekly files from {len(kept_messages)} substantive messages, '
     f'including {rav_count} Rav Rosenfeld messages, in {out_dir}'
 )
