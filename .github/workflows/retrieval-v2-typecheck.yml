@@ -1,0 +1,18 @@
+name: Retrieval v2 typecheck
+
+on:
+  push:
+    branches:
+      - retrieval-v2-20260812
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: npm install
+      - run: npm run typecheck
