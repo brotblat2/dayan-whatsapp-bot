@@ -173,6 +173,12 @@ async function processWebhook(body: any, env: Env): Promise<void> {
 }
 
 async function askGemini(question: string, history: ChatTurn[], env: Env): Promise<string> {
+  console.log("askGemini start", {
+    model: GEMINI_MODEL,
+    hasApiKey: Boolean(env.GEMINI_API_KEY),
+    hasFileSearchStore: Boolean(env.GEMINI_FILE_SEARCH_STORE)
+  });
+
   const historyText = history.length
     ? history.map((t) => `${t.role === "user" ? "User" : "Assistant"}: ${t.text}`).join("\n")
     : "(none)";
@@ -200,6 +206,8 @@ async function askGemini(question: string, history: ChatTurn[], env: Env): Promi
     }
   );
 
+  console.log("Gemini response status", response.status);
+
   if (!response.ok) {
     const errorBody = await response.text();
     console.error("Gemini API error", {
@@ -213,6 +221,11 @@ async function askGemini(question: string, history: ChatTurn[], env: Env): Promi
   }
 
   const data: any = await response.json();
+  console.log("Gemini response shape", {
+    keys: Object.keys(data ?? {}),
+    stepTypes: Array.isArray(data?.steps) ? data.steps.map((step: any) => step?.type ?? "(missing)") : []
+  });
+
   const textParts: string[] = [];
   const citations = new Map<string, { file: string; page?: number }>();
 
