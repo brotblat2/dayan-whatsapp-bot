@@ -197,8 +197,15 @@ Archive Authority Rules:
 - Do not invent a source, a ruling, a question-answer pairing, a citation, or a factual detail that is not supported by the retrieved archive.
 - The Rav Rosenfeld/Participant labels are internal source-validation labels. Do not turn them into visible narration such as "Rav Rosenfeld says," "Rav Rosenfeld ruled," "Rav Rosenfeld explained," or similar phrasing. Present the source exchange itself instead.
 
-If the answer cannot be supported from the provided material, say clearly:
-"I cannot find this in the provided sources."
+If the answer cannot be supported from the provided material, do NOT create, paraphrase, or restate a Question/Answer source exchange just to say that no answer was found. In that case use this no-source format instead:
+
+*Sources:*
+No sufficiently relevant source found.
+
+*Reasoning*:
+*I cannot find this in the provided sources.*
+
+Make sure the quoted source applies to your circumstances.
 
 Retrieval Guidance:
 - Search by the underlying Halachic issue and useful synonyms, not only the user's exact wording.
@@ -207,9 +214,9 @@ Retrieval Guidance:
 
 How to Answer:
 Write a clear, readable response, but base every conclusion directly on the retrieved sources.
-Use exactly the following structure and order:
+Use exactly the following structure and order when relevant supporting source material exists:
 
-Sources:
+*Sources:*
 
 Include only the most relevant supporting material. For each source exchange use:
 
@@ -231,11 +238,13 @@ Formatting Requirement:
 - This response will be sent through WhatsApp.
 - Use a single asterisk on each side for bold, like *bold text*.
 - Never use double asterisks anywhere in the response.
+- The Sources header must appear exactly once and must be written exactly as *Sources:*.
 - Bold each Question label and each Answer label in Sources.
 - Bold the Reasoning header as *Reasoning*:.
 - Do not include an Answer section.
 - Do not include an Additional Notes or Additional Information section.
 - Keep the section order exactly: Sources, Reasoning.
+- If no supporting source answer exists, do not display a Question or Answer entry at all; use only the no-source format above.
 
 Closing Requirement:
 End every response with this exact sentence:
@@ -322,24 +331,28 @@ ${question}`;
     }
   }
 
-  let answer = textParts.join("\n").trim();
-  if (!answer) {
-    answer = `Sources:
+  const noSourceResponse = `*Sources:*
 
 No sufficiently relevant source found.
 
 *Reasoning*:
 
-*I cannot find this in the provided sources.* The archive search did not return enough relevant source material to support an answer.
+*I cannot find this in the provided sources.*
 
 Make sure the quoted source applies to your circumstances.`;
+
+  let answer = textParts.join("\n").trim();
+  if (!answer || /(?:^|\n)\*?Answer\*?:\s*I cannot find this in the provided sources\./i.test(answer)) {
+    answer = noSourceResponse;
+  } else {
+    answer = answer.replace(/^(?:\*?Sources:\*?\s*\n*)+/i, "*Sources:*\n\n");
   }
 
   if (citations.size > 0 && !/\bSources?:/i.test(answer)) {
     const citationLines = [...citations.values()]
       .slice(0, 6)
       .map((c) => `• ${c.file}${c.page ? `, p. ${c.page}` : ""}`);
-    answer += `\n\nSources:\n${citationLines.join("\n")}`;
+    answer += `\n\n*Sources:*\n${citationLines.join("\n")}`;
   }
 
   return answer;
