@@ -82,13 +82,9 @@ export default {
       return new Response("Bad JSON", { status: 400 });
     }
 
-    // Gemini File Search can take longer than the 30-second waitUntil grace period.
-    // Queue the verified webhook so Meta gets an immediate acknowledgement while
-    // the Queue consumer gets a much longer execution window for Gemini + reply.
     if (env.WEBHOOK_QUEUE) {
       await env.WEBHOOK_QUEUE.send(body);
     } else {
-      // Safe rollout fallback until the Queue binding has been provisioned.
       const task = processWebhook(body, env).catch((error) => console.error("webhook error", error));
       ctx.waitUntil(task);
     }
@@ -276,7 +272,7 @@ async function saveHistory(
 }
 
 async function markAsRead(messageId: string, env: Env): Promise<void> {
-  await fetch(
+  const response = await fetch(
     `https://graph.facebook.com/${GRAPH_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`,
     {
       method: "POST",
@@ -291,6 +287,16 @@ async function markAsRead(messageId: string, env: Env): Promise<void> {
       })
     }
   );
+
+  if (!response.ok) {
+    const errorBody = await response.text();
+    console.error("WhatsApp mark-read error", {
+      status: response.status,
+      body: errorBody,
+      phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID || "(missing)",
+      hasAccessToken: Boolean(env.WHATSAPP_ACCESS_TOKEN)
+    });
+  }
 }
 
 async function sendLongWhatsAppText(to: string, text: string, env: Env): Promise<void> {
@@ -320,7 +326,15 @@ async function sendWhatsAppText(to: string, text: string, env: Env): Promise<voi
   );
 
   if (!response.ok) {
-    throw new Error(`WhatsApp ${response.status}: ${await response.text()}`);
+    const errorBody = await response.text();
+    console.error("WhatsApp API error", {
+      status: response.status,
+      body: errorBody,
+      phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID || "(missing)",
+      to,
+      hasAccessToken: Boolean(env.WHATSAPP_ACCESS_TOKEN)
+    });
+    throw new Error(`WhatsApp ${response.status}: ${errorBody}`);
   }
 }
 
