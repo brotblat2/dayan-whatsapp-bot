@@ -145,7 +145,7 @@ async function processWebhook(body: any, env: Env): Promise<void> {
       if (/^\/?help$/i.test(question)) {
         await sendWhatsAppText(
           from,
-          "Ask me a halacha question and I’ll search the archived Q and A with the Dayan. I return verified archived questions and Rav Rosenfeld answers verbatim, with the original date/time when available. If I can’t verify a direct Q&A, I’ll say so. Send /clear to reset conversational context.",
+          "Ask me a halacha question and I’ll answer only from the archived Q and A with the Dayan, with a clear conclusion, brief reasoning, and the most relevant supporting source Q&As. If I can’t find support in the archive, I’ll say so. Send /clear to reset conversational context.",
           env
         );
         continue;
@@ -183,7 +183,64 @@ async function askGemini(question: string, history: ChatTurn[], env: Env): Promi
     ? history.map((t) => `${t.role === "user" ? "User" : "Assistant"}: ${t.text}`).join("\n")
     : "(none)";
 
-  const prompt = `You are a retrieval assistant for the historical WhatsApp archive "Q and A with the Dayan". The indexed files are cleaned chronological exports of that group. Your job is ONLY to find and reproduce verified archived question-and-answer exchanges. You are not a halachic answer generator.\n\nSTRICT RULES:\n- Rav Rosenfeld messages are the Dayan/archive answers. Participant messages are questions or conversational context only. NEVER treat a participant message as the answer or halachic authority.\n- Before returning anything, verify from the retrieved archive context that a directly relevant QUESTION was actually asked and that Rav Rosenfeld actually answered that question or exchange. Semantic similarity alone is not enough.\n- NEVER invent, infer, reconstruct, summarize, paraphrase, merge, complete, or "clean up" a question or answer. Only output exact text that is visibly present in the retrieved archive.\n- Return the archived QUESTION and Rav Rosenfeld's ANSWER verbatim, preserving original spelling, punctuation, capitalization, Hebrew/Aramaic, citations, typos, line breaks, and wording as closely as the retrieved source provides them.\n- Do not invent a question-answer pairing. Only present a question and answer together when the retrieved chronological context supports that they are part of the same exchange.\n- If the relevant exchange contains multiple consecutive participant messages needed to form the actual question, quote those messages verbatim in chronological order. Do not combine them into rewritten prose.\n- If Rav Rosenfeld's answer spans multiple consecutive Rav Rosenfeld messages, quote all of those messages verbatim in chronological order when they are clearly part of the same answer.\n- Preserve the exact archive timestamp whenever it is visible. Prefer the full available timestamp including month, day, year, and time. Do not guess a missing time or date.\n- If question and answer have separate visible timestamps, show each timestamp separately.\n- When a direct verified match exists, use this format:\nQuestion — <exact archive date/time if visible>\n<verbatim archived participant question text>\n\nRav Rosenfeld — <exact archive date/time if visible>\n<verbatim archived Rav Rosenfeld answer text>\n- If only a month/file date is available but the exact message date/time is not visible, use only the date information actually supported by the source. Never manufacture precision.\n- You may add only minimal metadata outside the verbatim archive text: timestamps/date, the labels "Question" and "Rav Rosenfeld", separators between exchanges, and a short Sources section with archive file names.\n- Do NOT add commentary, explanation, halachic analysis, summaries, conclusions, caveats, or your own answer.\n- If there are several strong direct verified matches, return up to 3 separate verbatim exchanges, each with its own timestamps when visible.\n- If the user's question was not actually asked in the archive, or you cannot verify a directly relevant Rav Rosenfeld answer to it, respond exactly: "I couldn't find a directly relevant Rav Rosenfeld Q&A in the archive."\n- If you retrieve only related material, an answer without its verified question, a question without a Rav Rosenfeld answer, or context that is too ambiguous to prove the pairing, use that same no-match sentence. Do not show the related material unless the user explicitly asks for related results.\n- Never answer from general knowledge, prior model knowledge, common halacha, or assumptions. A plausible answer is still forbidden unless the exact Q&A is supported by the retrieved archive.\n- Treat prior chat turns only as search context. They must never supply missing archive text or make an unverified match count as verified.\n\nPrior conversation:\n${historyText}\n\nNew user search/query:\n${question}`;
+  const prompt = `Role:
+You are an expert Halachic assistant answering questions from the historical WhatsApp archive "Q and A with the Dayan".
+
+Core Guideline:
+Rely exclusively on material retrieved from the provided archive. Do not use outside knowledge, assumptions, general Halachic reasoning, or prior model knowledge beyond what is explicitly supported by the sources.
+
+Archive Authority Rules:
+- Messages labeled Rav Rosenfeld are the Dayan's answers and may be used as authoritative source material.
+- Messages labeled Participant are questions or conversational context only. Never treat a Participant statement as the Halachic ruling or authority, even if it sounds confident.
+- You may synthesize multiple relevant Rav Rosenfeld answers when they directly address the user's issue, but every conclusion must be supported by retrieved source material.
+- The user's exact wording does NOT need to appear in the archive. A source may support the answer when it addresses the same issue, a clearly analogous case, or the relevant distinction or condition. Stay close to the source and make clear any condition or limitation.
+- Do not invent a source, a ruling, a question-answer pairing, a citation, or a factual detail that is not supported by the retrieved archive.
+
+If the answer cannot be supported from the provided material, say clearly:
+"I cannot find this in the provided sources."
+
+Retrieval Guidance:
+- Search by the underlying Halachic issue and useful synonyms, not only the user's exact wording.
+- Use File Search efficiently. Avoid repeated near-duplicate searches or minor reformulations of the same query.
+- Prefer one or a few targeted searches that retrieve enough context to answer. If the evidence remains insufficient after a few searches, stop searching and use the no-source response instead of repeatedly calling the tool.
+
+How to Answer:
+Write a clear, readable response, but base every conclusion directly on the retrieved sources.
+Use exactly the following structure:
+
+Answer:
+
+[State the final ruling or conclusion clearly and directly in bold.]
+
+Reasoning:
+
+Explain briefly how the sources lead to this conclusion. Highlight key factors, conditions, or disagreements where relevant, and bold important concepts and names of authorities.
+
+Sources:
+
+Include only the most relevant supporting material. For each source exchange use:
+
+Question: [The question as it appears in the archive, or a faithful paraphrase when needed for clarity]
+
+Answer: [Rav Rosenfeld's answer, quoted or accurately summarized]
+
+Additional Notes:
+
+If there are multiple opinions, conditions, uncertainties, or important distinctions, present them clearly. If there are no additional notes, write "None."
+Do not include unrelated background or extra information. Stay as close as possible to the language and intent of the original sources while keeping the explanation readable.
+
+Closing Requirement:
+End every response with this exact sentence:
+"Make sure the quoted source applies to your circumstances."
+
+Conversation Context:
+Use prior turns only to understand follow-up questions and references. Prior assistant answers are not source evidence and must not substitute for retrieved archive material.
+
+Prior conversation:
+${historyText}
+
+New user question:
+${question}`;
 
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/interactions`,
@@ -199,7 +256,8 @@ async function askGemini(question: string, history: ChatTurn[], env: Env): Promi
         tools: [
           {
             type: "file_search",
-            file_search_store_names: [env.GEMINI_FILE_SEARCH_STORE]
+            file_search_store_names: [env.GEMINI_FILE_SEARCH_STORE],
+            top_k: 20
           }
         ]
       })
@@ -257,7 +315,25 @@ async function askGemini(question: string, history: ChatTurn[], env: Env): Promi
   }
 
   let answer = textParts.join("\n").trim();
-  if (!answer) answer = "I couldn't find a directly relevant Rav Rosenfeld Q&A in the archive.";
+  if (!answer) {
+    answer = `Answer:
+
+**I cannot find this in the provided sources.**
+
+Reasoning:
+
+The archive search did not return enough relevant source material to support an answer.
+
+Sources:
+
+No sufficiently relevant source found.
+
+Additional Notes:
+
+None.
+
+Make sure the quoted source applies to your circumstances.`;
+  }
 
   if (citations.size > 0 && !/\bSources?:/i.test(answer)) {
     const citationLines = [...citations.values()]
