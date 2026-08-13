@@ -46,7 +46,7 @@ for (const [displayName, absolute] of fileByName) {
   await sleep(existing?.state === "STATE_FAILED" ? 5000 : 1500);
 }
 
-console.log(`Queued ${queued} new upload(s). Now waiting for the retrieval-v2 archive to finish indexing in parallel...`);
+console.log(`Queued ${queued} new upload(s). Now waiting for the retrieval-v3 archive to finish indexing in parallel...`);
 
 const started = Date.now();
 const maxWaitMs = 2 * 60 * 60 * 1000;
@@ -67,7 +67,7 @@ while (true) {
     else pending.push(name);
   }
 
-  const summary = `${active.length}/${expectedNames.size} retrieval-v2 active, ${pending.length} pending, ${failed.length} failed, ${missing.length} not visible yet`;
+  const summary = `${active.length}/${expectedNames.size} retrieval-v3 active, ${pending.length} pending, ${failed.length} failed, ${missing.length} not visible yet`;
   if (summary !== lastSummary) {
     console.log(summary);
     if (pending.length && pending.length <= 10) console.log(`  pending: ${pending.join(", ")}`);
@@ -105,16 +105,16 @@ while (true) {
 
   if (!pending.length && !missing.length) {
     if (failed.length) {
-      console.warn(`Retrieval-v2 indexing completed with ${failed.length} persistently failed document(s): ${failed.join(", ")}`);
+      console.warn(`Retrieval-v3 indexing completed with ${failed.length} persistently failed document(s): ${failed.join(", ")}`);
     } else {
-      console.log("All retrieval-v2 archive documents are ACTIVE and searchable.");
+      console.log("All retrieval-v3 archive documents are ACTIVE and searchable.");
     }
-    console.log(`Usable retrieval-v2 coverage: ${active.length}/${expectedNames.size} documents active.`);
+    console.log(`Usable retrieval-v3 coverage: ${active.length}/${expectedNames.size} documents active.`);
     break;
   }
 
   if (Date.now() - started > maxWaitMs) {
-    console.warn(`Retrieval-v2 indexing timed out with ${active.length}/${expectedNames.size} active, ${pending.length} pending, ${failed.length} failed, and ${missing.length} missing. Continuing so regression tests can measure the searchable coverage already available.`);
+    console.warn(`Retrieval-v3 indexing timed out with ${active.length}/${expectedNames.size} active, ${pending.length} pending, ${failed.length} failed, and ${missing.length} missing. Continuing so regression tests can measure the searchable coverage already available.`);
     break;
   }
 
@@ -124,8 +124,8 @@ while (true) {
 async function uploadFile(absolute, displayName) {
   const stat = fs.statSync(absolute);
   const mime = guessMime(displayName);
-  const period = displayName.match(/^retrieval-v2-(\d{4}-W\d{2})\.md$/)?.[1] || "unknown";
-  console.log(`Uploading ${displayName} with retrieval-v2 chunking...`);
+  const period = displayName.match(/^retrieval-v3-(\d{4}-W\d{2})\.md$/)?.[1] || "unknown";
+  console.log(`Uploading ${displayName} with retrieval-v3 chunking...`);
 
   const start = await fetchWithRetry(
     `https://generativelanguage.googleapis.com/upload/v1beta/${store}:uploadToFileSearchStore?key=${encodeURIComponent(apiKey)}`,
@@ -143,7 +143,7 @@ async function uploadFile(absolute, displayName) {
         mimeType: mime,
         customMetadata: [
           { key: "archive", stringValue: "dayan-whatsapp" },
-          { key: "representation", stringValue: "retrieval-v2" },
+          { key: "representation", stringValue: "retrieval-v3" },
           { key: "period", stringValue: period }
         ],
         chunkingConfig: {
