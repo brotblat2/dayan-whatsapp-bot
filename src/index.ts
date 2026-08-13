@@ -44,7 +44,7 @@ type WhatsAppMessage = {
 type ChatTurn = { role: "user" | "assistant"; text: string };
 
 const GRAPH_VERSION = "v26.0";
-const GEMINI_MODEL = "gemini-3.6-flash";
+const GEMINI_MODEL = "gemini-3.5-flash-lite";
 const MAX_HISTORY_TURNS = 8;
 const WHATSAPP_TEXT_LIMIT = 3900;
 
