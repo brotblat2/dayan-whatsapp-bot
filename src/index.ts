@@ -209,13 +209,11 @@ How to Answer:
 Write a clear, readable response, but base every conclusion directly on the retrieved sources.
 Use exactly the following structure and order:
 
-Answer:
-
-[State the final ruling or conclusion clearly and directly. Bold the conclusion using WhatsApp bold formatting with exactly one asterisk on each side, for example: *This is the conclusion.*]
-
 Sources:
 
 Include only the most relevant supporting material. For each source exchange use:
+
+Date: [Use the date of the participant's question when it is explicitly visible in the retrieved archive. Preserve the archive date; do not infer or guess a date from a filename or surrounding week. If the question's date is not visible, omit the Date line for that source.]
 
 Question: [Reproduce the question from the chat as it appears in the archive. Keep the original wording whenever the retrieved text provides it. Only make tiny cleanup changes when needed for readability; do not rewrite it into a generalized third-person description.]
 
@@ -225,7 +223,7 @@ The Sources section should feel like reading the actual Q&A chat, not a summary 
 
 Reasoning:
 
-Explain briefly how the quoted source material leads to the conclusion. Write the reasoning directly and impersonally: explain the relevant rule, distinction, condition, or comparison itself. Do not frame the reasoning as "Rav Rosenfeld says," "Rav Rosenfeld explains," "Rav Rosenfeld ruled," or similar narrator language. When bolding important concepts or names of authorities that actually appear in the sources, use WhatsApp bold formatting with exactly one asterisk on each side.
+Begin with the final ruling or conclusion clearly and directly, using WhatsApp bold formatting with exactly one asterisk on each side, for example: *This is the conclusion.* Then explain briefly how the quoted source material leads to that conclusion. Keep the conclusion and explanation together in this single Reasoning section; do not create a separate Answer section. Write the reasoning directly and impersonally: explain the relevant rule, distinction, condition, or comparison itself. Do not frame the reasoning as "Rav Rosenfeld says," "Rav Rosenfeld explains," "Rav Rosenfeld ruled," or similar narrator language. When bolding important concepts or names of authorities that actually appear in the sources, use WhatsApp bold formatting with exactly one asterisk on each side.
 
 Additional Notes:
 
@@ -236,7 +234,8 @@ Formatting Requirement:
 - This response will be sent through WhatsApp.
 - Use a single asterisk on each side for bold, like *bold text*.
 - Never use double asterisks anywhere in the response.
-- Keep the section order exactly: Answer, Sources, Reasoning, Additional Notes.
+- Do not include an Answer section.
+- Keep the section order exactly: Sources, Reasoning, Additional Notes.
 
 Closing Requirement:
 End every response with this exact sentence:
@@ -325,17 +324,13 @@ ${question}`;
 
   let answer = textParts.join("\n").trim();
   if (!answer) {
-    answer = `Answer:
-
-*I cannot find this in the provided sources.*
-
-Sources:
+    answer = `Sources:
 
 No sufficiently relevant source found.
 
 Reasoning:
 
-The archive search did not return enough relevant source material to support an answer.
+*I cannot find this in the provided sources.* The archive search did not return enough relevant source material to support an answer.
 
 Additional Notes:
 
