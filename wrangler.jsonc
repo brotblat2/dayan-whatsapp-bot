@@ -11,8 +11,7 @@
       "WHATSAPP_ACCESS_TOKEN",
       "WHATSAPP_PHONE_NUMBER_ID",
       "GEMINI_API_KEY",
-      "GEMINI_FILE_SEARCH_STORE",
-      "ALLOWED_PHONE_NUMBERS"
+      "GEMINI_FILE_SEARCH_STORE"
     ]
   },
   "kv_namespaces": [
