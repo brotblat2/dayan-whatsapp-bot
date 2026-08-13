@@ -42,14 +42,13 @@ for (const [displayName, absolute] of fileByName) {
 
   await uploadFile(absolute, displayName);
   queued++;
-  // Gentle pacing avoids bursting upload requests even on lower API tiers.
   await sleep(existing?.state === "STATE_FAILED" ? 5000 : 1500);
 }
 
-console.log(`Queued ${queued} new upload(s). Now waiting for the whole archive to finish indexing in parallel...`);
+console.log(`Queued ${queued} new upload(s). Now waiting for the retrieval-v2 archive to finish indexing in parallel...`);
 
 const started = Date.now();
-const maxWaitMs = 2 * 60 * 60 * 1000; // two hours overall
+const maxWaitMs = 2 * 60 * 60 * 1000;
 let lastSummary = "";
 
 while (true) {
@@ -67,7 +66,7 @@ while (true) {
     else pending.push(name);
   }
 
-  const summary = `${active.length}/${expectedNames.size} active, ${pending.length} pending, ${failed.length} failed, ${missing.length} not visible yet`;
+  const summary = `${active.length}/${expectedNames.size} retrieval-v2 active, ${pending.length} pending, ${failed.length} failed, ${missing.length} not visible yet`;
   if (summary !== lastSummary) {
     console.log(summary);
     if (pending.length && pending.length <= 10) console.log(`  pending: ${pending.join(", ")}`);
@@ -76,7 +75,7 @@ while (true) {
   }
 
   if (active.length === expectedNames.size) {
-    console.log("All archive documents are ACTIVE and searchable.");
+    console.log("All retrieval-v2 archive documents are ACTIVE and searchable.");
     break;
   }
 
@@ -98,7 +97,6 @@ while (true) {
       await sleep(5000);
       await uploadFile(absolute, displayName);
       retryCounts.set(displayName, nextAttempt);
-      // Deliberately slow retries to avoid another burst of indexing failures.
       await sleep(7000);
     }
     lastSummary = "";
@@ -107,7 +105,7 @@ while (true) {
   }
 
   if (Date.now() - started > maxWaitMs) {
-    throw new Error(`Archive still has ${pending.length} pending and ${missing.length} missing document(s) after two hours. Re-run safely; active files will be skipped and pending files will continue to be monitored.`);
+    throw new Error(`Retrieval-v2 archive still has ${pending.length} pending and ${missing.length} missing document(s) after two hours. Re-run safely; active files will be skipped and pending files will continue to be monitored.`);
   }
 
   await sleep(15000);
@@ -116,7 +114,8 @@ while (true) {
 async function uploadFile(absolute, displayName) {
   const stat = fs.statSync(absolute);
   const mime = guessMime(displayName);
-  console.log(`Uploading ${displayName}...`);
+  const period = displayName.match(/^retrieval-v2-(\d{4}-W\d{2})\.md$/)?.[1] || "unknown";
+  console.log(`Uploading ${displayName} with retrieval-v2 chunking...`);
 
   const start = await fetchWithRetry(
     `https://generativelanguage.googleapis.com/upload/v1beta/${store}:uploadToFileSearchStore?key=${encodeURIComponent(apiKey)}`,
@@ -129,7 +128,21 @@ async function uploadFile(absolute, displayName) {
         "X-Goog-Upload-Header-Content-Type": mime,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ displayName })
+      body: JSON.stringify({
+        displayName,
+        mimeType: mime,
+        customMetadata: [
+          { key: "archive", stringValue: "dayan-whatsapp" },
+          { key: "representation", stringValue: "retrieval-v2" },
+          { key: "period", stringValue: period }
+        ],
+        chunkingConfig: {
+          whiteSpaceConfig: {
+            maxTokensPerChunk: 450,
+            maxOverlapTokens: 180
+          }
+        }
+      })
     },
     `start upload for ${displayName}`
   );
@@ -195,7 +208,6 @@ async function deleteDocument(name) {
     { method: "DELETE" },
     `delete failed document ${name}`
   );
-  // Consume the body so keep-alive connections can be cleanly reused.
   await res.text();
 }
 
