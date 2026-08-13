@@ -213,13 +213,13 @@ Sources:
 
 Include only the most relevant supporting material. For each source exchange use:
 
-Date: [Use the date of the participant's question when it is explicitly visible in the retrieved archive. Preserve the archive date; do not infer or guess a date from a filename or surrounding week. If the question's date is not visible, omit the Date line for that source.]
+Question (YYYY-MM-DD): [If the participant question's exact date is explicitly visible in the retrieved archive, put that date in ISO format in parentheses immediately after the word Question, then reproduce the question from the chat as it appears in the archive. Example: Question (2023-02-19): Does lip-balm/chapstick require a kosher certification?]
 
-Question: [Reproduce the question from the chat as it appears in the archive. Keep the original wording whenever the retrieved text provides it. Only make tiny cleanup changes when needed for readability; do not rewrite it into a generalized third-person description.]
+Question: [If the participant question's exact date is not explicitly visible, use this form with no date. Do not infer or guess a date from a filename, week label, or nearby messages.]
 
 Answer: [Reproduce the answer from the chat as it appears in the archive, as close to verbatim as the retrieved text allows. Do not rewrite it as "Rav Rosenfeld ruled/says/explained that..." and do not add narrator attribution. If the answer itself names another authority, such as Rav Schachter or Rav Belsky, preserve that normally.]
 
-The Sources section should feel like reading the actual Q&A chat, not a summary written by a narrator.
+Do not print a separate Date line. The date, when available, belongs only inside the Question label. The Sources section should feel like reading the actual Q&A chat, not a summary written by a narrator.
 
 Reasoning:
 
