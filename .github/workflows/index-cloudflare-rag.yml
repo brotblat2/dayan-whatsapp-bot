@@ -1,0 +1,86 @@
+name: Index Cloudflare RAG
+
+on:
+  workflow_dispatch:
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_VECTORIZE_INDEX: dayan-archive-v1
+      CLOUDFLARE_EMBEDDING_MODEL: '@cf/qwen/qwen3-embedding-0.6b'
+      CLOUDFLARE_RAG_TOP_K: '8'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Verify Cloudflare credentials
+        shell: bash
+        run: |
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "CLOUDFLARE_ACCOUNT_ID repository secret is missing." >&2
+            exit 1
+          fi
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN repository secret is missing." >&2
+            exit 1
+          fi
+
+      - name: Install dev dependencies
+        run: npm install --ignore-scripts
+
+      - name: Typecheck Worker
+        run: npm run typecheck
+
+      - name: Build Rav-centered retrieval windows
+        run: python3 scripts/prepare-vector-windows.py
+
+      - name: Index archive into Cloudflare Vectorize
+        run: node scripts/index-vectorize.mjs
+
+      - name: Run known-question retrieval checks
+        id: regression
+        continue-on-error: true
+        run: node scripts/evaluate-vectorize.mjs | tee /tmp/vectorize-eval.log
+
+      - name: Summarize
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Cloudflare RAG archive index"
+            echo
+            echo "Vectorize index: \`$CLOUDFLARE_VECTORIZE_INDEX\`"
+            echo
+            echo "Embedding model: \`$CLOUDFLARE_EMBEDDING_MODEL\`"
+            echo
+            if [ -f build/vector-windows.jsonl ]; then
+              COUNT=$(wc -l < build/vector-windows.jsonl | tr -d ' ')
+              echo "Rav-centered windows prepared: **$COUNT**"
+              echo
+            fi
+            if [ -f /tmp/vectorize-eval.log ]; then
+              grep 'Vectorize retrieval regression summary:' /tmp/vectorize-eval.log || true
+            fi
+            if [ "${{ steps.regression.outcome }}" != "success" ]; then
+              echo
+              echo "The archive was indexed, but at least one retrieval regression did not surface the known source in the configured top-K. Review the retrieval output before enabling the Cloudflare backend for live traffic."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail if retrieval regression failed
+        if: steps.regression.outcome != 'success'
+        run: |
+          echo "Cloudflare index exists, but retrieval regression checks need tuning before live use." >&2
+          exit 1
