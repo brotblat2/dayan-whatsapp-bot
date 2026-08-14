@@ -1,3 +1,5 @@
+import { askCloudflareRag } from "./cloudflare-rag";
+
 interface KVNamespace {
   get(key: string): Promise<string | null>;
   put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
@@ -30,6 +32,16 @@ interface Env {
   GEMINI_API_KEY: string;
   GEMINI_FILE_SEARCH_STORE: string;
   ALLOWED_PHONE_NUMBERS?: string;
+  RAG_BACKEND?: string;
+  RAG_TEST_BACKEND?: string;
+  RAG_TEST_PHONE_NUMBERS?: string;
+  OPENROUTER_API_KEY?: string;
+  OPENROUTER_MODEL?: string;
+  OPENROUTER_ZDR?: string;
+  CLOUDFLARE_EMBEDDING_MODEL?: string;
+  CLOUDFLARE_RAG_TOP_K?: string;
+  AI?: any;
+  DAYAN_VECTORIZE?: any;
   CHAT_HISTORY: KVNamespace;
   WEBHOOK_QUEUE?: QueueBinding<any>;
 }
@@ -42,6 +54,7 @@ type WhatsAppMessage = {
 };
 
 type ChatTurn = { role: "user" | "assistant"; text: string };
+type RagBackend = "google" | "cloudflare";
 
 const GRAPH_VERSION = "v26.0";
 const GEMINI_MODEL = "gemini-3.5-flash-lite";
@@ -158,7 +171,8 @@ async function processWebhook(body: any, env: Env): Promise<void> {
       }
 
       const history = await getHistory(from, env);
-      const answer = await askGemini(question, history, env);
+      const backend = selectRagBackend(from, env);
+      const answer = await askQuestion(question, history, backend, env);
       await sendLongWhatsAppText(from, answer, env);
       await saveHistory(from, history, question, answer, env);
     } catch (error) {
@@ -170,6 +184,32 @@ async function processWebhook(body: any, env: Env): Promise<void> {
       );
     }
   }
+}
+
+function selectRagBackend(phone: string, env: Env): RagBackend {
+  const testPhones = (env.RAG_TEST_PHONE_NUMBERS || "")
+    .split(",")
+    .map(normalizePhone)
+    .filter(Boolean);
+  const useTestBackend = testPhones.includes(phone) && Boolean(env.RAG_TEST_BACKEND?.trim());
+  const configured = (useTestBackend ? env.RAG_TEST_BACKEND : env.RAG_BACKEND)?.trim().toLowerCase() || "google";
+
+  if (configured === "cloudflare") return "cloudflare";
+  if (configured !== "google") {
+    console.warn(`Unknown RAG backend '${configured}', falling back to google`);
+  }
+  return "google";
+}
+
+async function askQuestion(
+  question: string,
+  history: ChatTurn[],
+  backend: RagBackend,
+  env: Env
+): Promise<string> {
+  console.log("RAG backend selected", { backend });
+  if (backend === "cloudflare") return askCloudflareRag(question, history, env);
+  return askGemini(question, history, env);
 }
 
 async function askGemini(question: string, history: ChatTurn[], env: Env): Promise<string> {
