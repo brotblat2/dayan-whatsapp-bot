@@ -1,0 +1,38 @@
+name: Typecheck Worker
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'tsconfig.json'
+      - 'package.json'
+      - '.github/workflows/typecheck.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'tsconfig.json'
+      - 'package.json'
+      - '.github/workflows/typecheck.yml'
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Install dev dependencies
+        run: npm install --ignore-scripts
+
+      - name: Typecheck
+        run: npm run typecheck
